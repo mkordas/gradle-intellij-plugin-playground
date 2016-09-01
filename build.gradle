@@ -14,3 +14,73 @@ allprojects {
 wrapper {
     gradleVersion = '3.0'
 }
+
+def codeStyleFile = new File('.idea/codeStyleSettings.xml')
+if(!codeStyleFile.exists()) {
+    codeStyleFile.text = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectCodeStyleSettingsManager">
+    <option name="PER_PROJECT_SETTINGS">
+      <value>
+        <codeStyleSettings language="JAVA">
+        </codeStyleSettings>
+      </value>
+    </option>
+    <option name="USE_PER_PROJECT_SETTINGS" value="true" />
+  </component>
+</project>'''.stripIndent()
+}
+
+def styleXml = new XmlParser().parse(codeStyleFile)
+
+Node codeStyleSettings = styleXml.'**'.find { it.'@language' == 'JAVA' } as Node
+codeStyleSettings.add(new Node(codeStyleSettings, 'option', [name: 'ALIGN_MULTILINE_PARAMETERS', value: 'false']))
+
+def xmlOutput1 = new StringWriter()
+def xmlNodePrinter1 = new XmlNodePrinter(new PrintWriter(xmlOutput))
+xmlNodePrinter1.print(styleXml)
+println xmlOutput1
+codeStyleFile.text = xmlOutput1
+
+
+
+def dir = '.idea/inspectionProfiles'
+new File(dir).mkdirs()
+def mainFile = dir + '/Project_Default.xml'
+def file = new File(mainFile)
+if(!file.exists()) {
+    file.text = '''
+<component name='InspectionProjectProfileManager'>
+  <profile version='1.0'>
+    <option name='default' value='Project Default'></option>
+  </profile>
+</component>'''
+}
+
+
+def parser = new XmlParser().parse(file)
+Node profile = parser.profile[0]
+NodeList nodes = profile.inspection_tool
+List inspections = [
+        'EqualsAndHashcode',
+        'MissingOverrideAnnotation',
+
+].each { s ->
+    if (nodes.findAll {it['@class'] == s}.size() == 0) {
+        println 'doing'
+        nodes.add(new Node(profile, 'inspection_tool', [enabled: 'true', level: 'WARNING', 'class': s, enabled_by_default: 'true']))
+    }
+}
+println nodes
+
+def xmlOutput = new StringWriter()
+def xmlNodePrinter = new XmlNodePrinter(new PrintWriter(xmlOutput))
+xmlNodePrinter.with {
+    preserveWhitespace = true
+    expandEmptyElements = true
+    quote = "'" // Use single quote for attributes
+}
+xmlNodePrinter.print(parser)
+println xmlOutput
+file.text = xmlOutput
